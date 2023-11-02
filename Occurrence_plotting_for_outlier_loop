@@ -1,1 +1,36 @@
+#Map making code provided by Tal Kinser, loop created by Lauren Gillett
+#read in packages
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(ggplot2)
+library(dplyr)
 
+#create world map
+world <- ne_countries(scale = "small", returnclass = "sf")
+world_map <- ggplot() + geom_sf(data = world) +
+  coord_sf(xlim = c(-145, -34), ylim = c(63, -48), expand = FALSE) +
+  theme_void() +
+  theme(aspect.ratio=4.5/5)
+
+#List of .csv files you want to process
+  csv_files <- list.files("/blue/soltis/laurenwhitehurst/occ_recs_modeling/")
+  plot(world_map)
+#Loop through each .csv file
+  for (file in csv_files) {
+#Read in the .csv file
+    data <- read.csv(file)
+
+#Extract file name without extension
+    file_name <- tools::file_path_sans_ext(file)
+    
+#Create ggplot object
+    map <- world_map + geom_point(data = data, aes (x = longitude, y = latitude), size = 0.4, color = "red") +
+      ggtitle(file_name)  # Set plot title
+    
+#Save the plot with the name of the input file
+    ggsave(paste0("/blue/soltis/laurenwhitehurst/FL_Phylogenetics/images_outliers/", file_name, "_plot.jpeg"), map, width = 8, height = 6)
+    
+#Print a message indicating the file has been processed
+    print(paste("Plot saved for", file))
+  }
+  
