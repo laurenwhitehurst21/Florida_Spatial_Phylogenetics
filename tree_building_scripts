@@ -1,0 +1,18 @@
+#Below is a SLURM submission for generating a RAxML tree from an alignment doing 1000 bootstraps
+
+#!/bin/bash
+#SBATCH --job-name=RAxML
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=laurenwhitehurst@ufl.edu
+#SBATCH -o job_%j.out
+#SBATCH -e error.file
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64gb
+#SBATCH -t 96:00:00
+#SBATCH --qos=soltis-b
+ 
+module load raxml
+ 
+raxmlHPC-PTHREADS-AVX -x $RANDOM -p $RANDOM -f a  -m GTRGAMMA -s 07_02_22_matK_fasta.fasta -n 07_02_22_matk_raxml -N 1000 -T $SLURM_CPUS_ON_NODE
