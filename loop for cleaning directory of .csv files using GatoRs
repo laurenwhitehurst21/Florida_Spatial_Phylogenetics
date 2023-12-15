@@ -1,0 +1,453 @@
+install.packages("devtools")
+devtools::install_github("nataliepatten/gatoRs",
+                         force = TRUE)
+  ## Load Packages
+  ```{r message=FALSE, warning=FALSE}
+library(gatoRs)
+library(spocc)
+library(ggplot2)
+library(tidyr)
+library(scales)
+```
+
+
+## Create Synonymn Lists   
+Verbena_brasiliensis<-c("Verbena brasiliensis","Verbena chacensis","Verbena hansenii","Verbena paucifolia")
+Verbascum_thapsus<-c("Verbascum thapsus","Verbascum alatum","Verbascum angustius","Verbascum canescens","Verbascum collinum","Verbascum cuspidatum","Verbascum decurrens","Verbascum elongatum","Verbascum indicum","Verbascum linnaei","Verbascum neglectum","Verbascum officinarum","Verbascum pallidum","Verbascum plantagineum","Verbascum schraderi","Verbascum seminigrum","Verbascum simplex","Verbascum spectabile","Verbascum visianianum")
+Woodwardia_areolata<-c("Woodwardia areolata","Woodwardia angustifolia","Lorinseria areolata","Osmunda caroliniana","Woodwardia floridana")
+Rumex_obtusifolius<-c("Rumex obtusifolius","Rumex crispatulus","Acetosa obtusifolia","Lapathum obtusifolium","Lapathum sylvestre","Rumex sylvestris")
+
+
+# Make list of synonyms 
+l.df <- lapply(ls(pattern = "*_*"), function(x) get(x))
+name <- c("Verbena_brasiliensis",
+          "Verbascum_thapsus","Woodwardia_areolata") 
+#name <- c("Asclepias_curtissii","Calamintha_ashei","Dicerandra_frutescens","Encyclia_tampensis","Eriogonum_longifolium_var_gnaphalifolium","Eryngium_cuneifolium","Garberia_heterophylla","Hartwrightia_floridana","Hypericum_cumulicola","Hypericum_edisonianum","Lechea_cernua","Liatris_ohlingerae","Lilium_catesbaei","Nolina_brittoniana","Panicum_abscissum","Paronychia_chartacea","Pinguicula_lutea","Platanthera_ciliaris","Polygonum_basiramia","Polygonum_myriophylla","Prunus_geniculata","Tillandsia_balbisiana","Tillandsia_fasciculata","Tillandsia_utriculata","Warea_carteri")
+name <- gsub("_", " ", name)
+names(l.df) <- name
+#save(l.df, file = "data/synonym.RData")
+
+
+
+## Download records    
+
+### Download with spocc   
+
+occout <- c()
+for(i in 1:17){
+  occout[[i]] <-  spocc::occ2df(spocc::occ(query = l.df[[i]], from = c("gbif", "idigbio")))
+}
+save(occout, file = "../../Gatorsapplied/gapplied/data/occout.RData")
+```
+
+### Download with gatoRs   
+gout <- c()
+df<-gout[[15]]
+for(i in 1:18){
+  gout[[i]] <-  gatoRs::gators_download(synonyms.list  = l.df[[i]], 
+                                        write.file = FALSE, 
+                                        gbif.match = "fuzzy",
+                                        idigbio.filter = TRUE)
+}
+
+save(gout, file = "../Gatorsapplied/gapplied/data/gout.RData")
+```
+
+raw_count <- read.csv("../data/raw_count.csv")
+
+```
+
+# Cleaning
+```{r  eval=FALSE, include=TRUE}
+df<-(i in gout)
+temp <- full_clean(df,
+                   synonyms.list = c("Triticum aestivum","Triticum aegyptiacum","Triticum aestivum","Triticum cereale","Triticum compactum","Triticum creticum","Triticum hybernum","Triticum imberbe","Triticum orientale","Triticum persicum","Triticum pyramidale","Triticum sativum","Triticum segetale","Frumentum triticum","Triticum vulgare","Zeia vulgaris"),
+                   remove.NA.occ.id = TRUE,
+                   remove.NA.date = FALSE,
+                   accepted.name =  "Triticum aestivum",
+                   remove.zero = TRUE,
+                   precision = TRUE,
+                   digits = 2,
+                   remove.skewed = TRUE,
+                   basis.list = c("PRESERVED_SPECIMEN", "PreservedSpecimen", "Preserved Specimen"),
+                   remove.flagged = TRUE,
+                   thin.points = TRUE,
+                   distance = 0.002,
+                   reps = 100,
+                   one.point.per.pixel = TRUE)
+write.csv(temp, "/blue/soltis/laurenwhitehurst/FL_Phylogenetics/Cleaned_occurence_data/Triticum_aestivum.csv") 
+
+gators_cleaning <- data.frame()
+for(i in 1:17){
+  gators_cleaning[i, 1] <- names(l.df[i])
+  # Taxa clean
+ goutclean[[i]] <- taxa_clean(df = gout[[i]],  
+                               synonyms.list = l.df[[i]], 
+                               taxa.filter = "fuzzy", 
+                               accepted.name =  names(l.df[i])) 
+
+  # Basic Locality Clean 
+
+  goutclean[[i]] <- basic_locality_clean(df = goutclean[[i]],
+                                         latitude = "latitude",
+                                         longitude = "longitude",
+                                         remove.zero = TRUE,
+                                         precision = TRUE,
+                                         digits = 3,
+                                         remove.skewed = FALSE)
+  
+  gators_cleaning[i, 3] <- nrow(goutclean[[i]])
+  
+  # Remove dups
+  occoutclean[[i]] <- remove_duplicates(df = occoutclean[[i]],
+                                        event.date = "date",
+                                        latitude = "latitude",
+                                        longitude = "longitude", 
+                                        aggregator = "prov", 
+                                        id = "key")
+  goutclean[[i]] <- remove_duplicates(df = goutclean[[i]])
+    gators_cleaning[i, 4] <- nrow(goutclean[[i]])
+  
+}
+
+for(i in 1:25){
+  gators_cleaning[i, 4] <- nrow(goutclean[[i]])
+}
+#write.csv(gators_cleaning, "../gapplied/data/gators_cleaning.csv")
+#write.csv(spocc_cleaning, "../gapplied/data/spocc_cleaning.csv")
+
+```
+
+# Sankey Diagram
+See https://r-graph-gallery.com/321-introduction-to-interactive-sankey-diagram-2.html
+```{r}
+library(networkD3)
+library(dplyr)
+
+gators_cleaning <- read.csv("../gapplied/data/gators_cleaning.csv")
+gators_cleaning <- gators_cleaning[,c(2:5)]
+gatorsums= c(sum(raw_count[,3]),
+             sum(gators_cleaning[,2]),
+             sum(gators_cleaning[,3]),
+             sum(gators_cleaning[,4])
+)
+
+#write.csv(gator_round_up, file = "data/gator_round_up.csv")
+links <- data.frame(
+  source=c("gators_download()", "taxa_clean()", "taxa_clean()", 
+           "basic_locality_clean()", "basic_locality_clean()",
+           "remove_duplicates()", "remove_duplicates()"),
+  target=c("taxa_clean()", "basic_locality_clean()", 
+           "Records Removed", "remove_duplicates()", "Records Removed",
+           "Records Retained", "Records Removed"),
+  values= c(gatorsums[1],
+            gatorsums[2],
+            gatorsums[1] - gatorsums[2],
+            gatorsums[3],
+            gatorsums[2]- gatorsums[3],
+            gatorsums[4],
+            gatorsums[3] - gatorsums[4]))
+# From these flows we need to create a node data frame: it lists every entities involved in the flow
+nodes <- data.frame(
+  name=c(as.character(links$source), 
+         as.character(links$target)) %>% unique()
+)
+
+# With networkD3, connection must be provided using id, not using real name like in the links dataframe.. So we need to reformat it.
+links$IDsource <- match(links$source, nodes$name)-1 
+links$IDtarget <- match(links$target, nodes$name)-1
+
+nodes$group <- as.factor(c("a","a","a","a","a","b"))
+
+setwd("/blue/soltis/laurenwhitehurst/FL_Phylogenetics")
+
+
+my_color <- 'd3.scaleOrdinal() .domain(["a", "b"]) .range(["#0021A5", "#FA4616"])'
+# Make the Network
+sankeyNetwork(Links = links, Nodes = nodes,
+              Source = "IDsource", Target = "IDtarget",
+              Value = "values", NodeID = "name", NodeGroup = "group",
+              sinksRight=FALSE,fontSize = 12, nodeWidth = 20, colourScale = my_color, 
+              width = 800, height = 300)
+
+
+
+```
+
+
+
+```{r}
+
+library(networkD3)
+library(dplyr)
+
+spocc_cleaning <- read.csv("../gapplied/data/spocc_cleaning.csv")
+spocc_cleaning <- spocc_cleaning[,c(2:5)]
+
+# Order 
+#ord = match(raw_count$Scientific_Name, spocc_cleaning$V1)
+#spocc_cleaning =  spocc_cleaning[ord,]
+#colnames(spocc_cleaning) <- c("Scientific Name", "Taxanomic.Cleaning", "Locality.Cleaning", #"Full.Clean" )
+#spocc_round_up <- as.data.frame(c(raw_count[,c(1,2)], spocc_cleaning[,c(2:4)]))
+#write.csv(spocc_round_up, file = "data/spocc_round_up.csv")
+spoccsums= c(sum(raw_count[,2]),
+             sum( spocc_cleaning[,2]),
+             sum( spocc_cleaning[,3]),
+             sum( spocc_cleaning[,4])
+)
+links2 <- 
+  data.frame(
+    source=c("occ()", "taxa_clean()", "taxa_clean()", 
+             "basic_locality_clean()", "basic_locality_clean()",
+             "remove_duplicates()", "remove_duplicates()"),
+    target=c("taxa_clean()", "basic_locality_clean()", 
+             "Records Removed", "remove_duplicates()", "Records Removed",
+             "Records Retained", "Records Removed"),
+    values= c(spoccsums[1],
+              spoccsums[2],
+              spoccsums[1] - spoccsums[2],
+              spoccsums[3],
+              spoccsums[2]- spoccsums[3],
+              spoccsums[4],
+              spoccsums[3] - spoccsums[4]))
+# From these flows we need to create a node data frame: it lists every entities involved in the flow
+nodes2 <- data.frame(
+  name=c(as.character(links2$source), 
+         as.character(links2$target)) %>% unique()
+)
+
+# With networkD3, connection must be provided using id, not using real name like in the links dataframe.. So we need to reformat it.
+links2$IDsource <- match(links2$source, nodes2$name)-1 
+links2$IDtarget <- match(links2$target, nodes2$name)-1
+
+nodes2$group <- as.factor(c("a","a","a","a", "a","b"))
+
+
+my_color <- 'd3.scaleOrdinal() .domain(["a", "b"]) .range(["#0021A5", "#FA4616"])'
+# Make the Network
+sankeyNetwork(Links = links2, Nodes = nodes2,
+              Source = "IDsource", Target = "IDtarget",
+              Value = "values", NodeID = "name", NodeGroup = "group",
+              sinksRight=FALSE,fontSize = 12, nodeWidth = 20, colourScale = my_color,
+              width = 800, height = 300)
+
+#CREATE SYNONYMS LIST
+#BELOW ARE SPECIES WITH ONE SYNONYM
+
+# Make list of synonyms 
+l.df <- lapply(ls(pattern = "*_*"), function(x) get(x))
+#name <- c("Asclepias_curtissii","Calamintha_ashei","Dicerandra_frutescens","Encyclia_tampensis","Eriogonum_longifolium_var_gnaphalifolium","Eryngium_cuneifolium","Garberia_heterophylla","Hartwrightia_floridana","Hypericum_cumulicola","Hypericum_edisonianum","Lechea_cernua","Liatris_ohlingerae","Lilium_catesbaei","Nolina_brittoniana","Panicum_abscissum","Paronychia_chartacea","Pinguicula_lutea","Platanthera_ciliaris","Polygonum_basiramia","Polygonum_myriophylla","Prunus_geniculata","Tillandsia_balbisiana","Tillandsia_fasciculata","Tillandsia_utriculata","Warea_carteri")
+name = c("Lysiloma_sabicu", "Acalypha_rhomboidea", "Ludwigia_grandiflora", "Tragia_cordata", "Ambrosia_psilostachya", "Hypelate_trifoliata", "Andropogon_glomeratus", "Andropogon_liebmannii", "Osmundastrum_cinnamomeum", "Crataegus_aestivalis", "Cleistesiopsis_divaricata", "Phlox_drummondii", "Asclepias_humistrata", "Sericocarpus_asteroides", "Eurybia_eryngiifolia", "Tephrosia_virginiana", "Crotalaria_pallida", "Diplotaxis_muralis", "Calamintha_coccinea", "Desmodium_triflorum", "Rhynchospora_floridensis", "Dodonaea_elaeagnoides", "Lobelia_amoena", "Eucalyptus_robusta", "Gymnanthes_lucida", "Flaveria_linearis", "Funastrum_clausum", "Galium_hispidulum", "Agalinis_harperi", "Gamochaeta_pensylvanica", "Lindernia_dubia", "Gratiola_viscidula", "Hamamelis_virginiana", "Houstonia_micrantha", "Helianthus_microcephalus", "Amianthium_muscaetoxicum", "Hygrophila_polysperma", "Heterotheca_subaxillaris", "Hibiscus_radiatus", "Oplismenus_setarius", "Hymenocallis_palmeri", "Hypericum_setosum", "Hypoxis_wrightii", "Mesosphaerum_pectinatum", "Chrysopsis_mariana", "Ludwigia_hirtella", "Ludwigia_microcarpa", "Bulbostylis_capillaris", "Jasminum_multiflorum", "Acalypha_wilkesiana", "Hypochaeris_chillensis", "Agave_virginica", "Habranthus_robustus", "Rotala_rotundifolia", "Dichanthium_aristatum", "Schizachyrium_littorale", "Schizachyrium_niveum", "Indigofera_spicata", "Paronychia_herniarioides", "Aristida_stricta", "Maurandya_antirrhiniflora", "Asparagus_aethiopicus", "Symphyotrichum_praealtum", "Symphyotrichum_oolentangiense", "Kalanchoe_pinnata", "Crotalaria_alata", "Croton_punctatus", "Cucumis_sativus", "Delphinium_carolinianum", "Phyllanthus_pentaphyllus", "Oclemena_reticulata", "Vigna_unguiculata", "Eucalyptus_camaldulensis", "Evolvulus_glomeratus", "Ficus_americana", "Fuirena_scirpoidea", "Nemophila_aphylla", "Aureolaria_pectinata", "Passiflora_incarnata", "Gratiola_aurea", "Ribes_echinellum", "Holmskioldia_sanguinea", "Lespedeza_violacea", "Helianthus_atrorubens", "Axonopus_compressus", "Croton_willdenowii", "Chrysopsis_floridana", "Hibiscus_aculeatus", "Hybanthus_linearifolius", "Krigia_virginica", "Hypochaeris_glabra", "Hypoxis_curtissii", "Lindernia_monticola", "Iris_verna", "Ludwigia_linifolia", "Ludwigia_sphaerocarpa", "Manihot_esculenta", "Luzula_acuminata", "Juncus_acuminatus", "Juncus_nodatus", "Kalmia_latifolia", "Koelreuteria_elegans", "Liatris_squarrulosa", "Lantana_montevidensis", "Lechea_sessiliflora", "Carphephorus_corymbosus", "Lilium_michauxii", "Stenochlaena_tenuifolia", "Luzula_echinata", "Malvastrum_corchorifolium", "Marsilea_vestita", "Hylodesmum_nudiflorum", "Desmodium_strictum", "Menispermum_canadense", "Monarda_citriodora", "Leitneria_floridana", "Najas_wrightiana", "Acalypha_wilkesiana", "Hypochaeris_chillensis", "Agave_virginica", "Habranthus_robustus", "Rotala_rotundifolia", "Dichanthium_aristatum", "Schizachyrium_littorale", "Schizachyrium_niveum", "Indigofera_spicata", "Paronychia_herniarioides", "Aristida_stricta", "Maurandya_antirrhiniflora", "Symphyotrichum_praealtum", "Symphyotrichum_oolentangiense", "Aureolaria_pectinata", "Passiflora_incarnata", "Holmskioldia_sanguinea", "Lespedeza_violacea", "Helianthus_atrorubens", "Axonopus_compressus", "Croton_willdenowii", "Chrysopsis_floridana", "Hibiscus_aculeatus", "Hybanthus_linearifolius", "Krigia_virginica", "Hypochaeris_glabra", "Hypoxis_curtissii", "Lindernia_monticola", "Sericocarpus_asteroides", "Tephrosia_virginiana", "Crotalaria_pallida", "Diplotaxis_muralis", "Calamintha_coccinea", "Desmodium_triflorum", "Rhynchospora_floridensis", "Dodonaea_elaeagnoides", "Lobelia_amoena", "Eucalyptus_robusta", "Gymnanthes_lucida", "Funastrum_clausum", "Galium_hispidulum", "Ludwigia_microcarpa", "Bulbostylis_capillaris", "Jasminum_multiflorum", "Juncus_tenuis", "Juncus_effusus", "Ludwigia_bonariensis", "Mimusops_elengi", "Brickellia_eupatorioides", "Liatris_spicata", "Lantana_depressa", "Lemna_minuta", "Thaspium_barbinode", "Nymphoides_indica", "Ludwigia_repens", "Lyonia_ligustrina", "Cyperus_echinatus", "Clitoria_mariana", "Desmodium_obtusum", "Acanthospermum_australe", "Mollugo_verticillata", "Bacopa_monnieri", "Myriophyllum_pinnatum", "Asparagus_aethiopicus", "Crotalaria_alata", "Croton_punctatus", "Cucumis_sativus", "Phyllanthus_pentaphyllus", "Oclemena_reticulata", "Vigna_unguiculata", "Evolvulus_glomeratus", "Ficus_americana", "Fuirena_scirpoidea", "Gratiola_aurea", "Ribes_echinellum", "Iris_verna", "Ludwigia_linifolia", "Ludwigia_sphaerocarpa", "Manihot_esculenta", "Lysiloma_sabicu", "Acalypha_rhomboidea", "Ludwigia_grandiflora", "Ambrosia_psilostachya", "Hypelate_trifoliata", "Andropogon_glomeratus", "Andropogon_liebmannii", "Osmundastrum_cinnamomeum", "Crataegus_aestivalis", "Cleistesiopsis_divaricata", "Phlox_drummondii", "Asclepias_humistrata", "Eurybia_eryngiifolia", "Flaveria_linearis", "Gamochaeta_pensylvanica", "Lindernia_dubia", "Gratiola_viscidula", "Hamamelis_virginiana", "Houstonia_micrantha", "Helianthus_microcephalus", "Amianthium_muscaetoxicum", "Hygrophila_polysperma", "Heterotheca_subaxillaris", "Hibiscus_radiatus", "Hymenocallis_palmeri", "Hypericum_setosum", "Mesosphaerum_pectinatum", "Chrysopsis_mariana", "Ludwigia_hirtella", "Juncus_trigonocarpus", "Juncus_canadensis", "Ludwigia_peruviana", "Koeleria_gerardii", "Lachnocaulon_minus", "Liatris_pauciflora", "Lasiacis_ruscifolia", "Helenium_brevifolium", "Ligustrum_japonicum", "Scaevola_plumieri", "Ludwigia_brevipes", "Corchorus_hirtus", "Cyperus_grayi", "Zoysia_matrella", "Desmodium_tortuosum", "Melochia_pyramidata", "Luffa_aegyptiaca", "Morus_rubra", "Myrsine_cubana", "Blechnum_occidentale", "Agalinis_harperi", "Eucalyptus_camaldulensis", "Delphinium_carolinianum", "Kalanchoe_pinnata", "Morella_cerifera", "Najas_marina", "Desmodium_incanum", "Malpighia_emarginata", "Liatris_gracilis", "Juncus_scirpoides", "Juncus_debilis", "Justicia_comata", "Pycnanthemum_flexuosum", "Hypoxis_wrightii", "Oplismenus_setarius", "Tragia_cordata", "Nemophila_aphylla") 
+#name = c("Lysiloma_sabicu","Acalypha_rhomboidea","Ludwigia_grandiflora","Tragia_cordata","Ambrosia_psilostachya","Hypelate_trifoliata","Andropogon_glomeratus","Andropogon_liebmannii","Osmundastrum_cinnamomeum","Crataegus_aestivalis","Cleistesiopsis_divaricata","Phlox_drummondii","Asclepias_humistrata","Sericocarpus_asteroides","Eurybia_eryngiifolia","Tephrosia_virginiana","Crotalaria_pallida","Diplotaxis_muralis","Calamintha_coccinea","Desmodium_triflorum","Rhynchospora_floridensis","Dodonaea_elaeagnoides","Lobelia_amoena","Eucalyptus_robusta","Gymnanthes_lucida","Flaveria_linearis","Funastrum_clausum","Galium_hispidulum","Agalinis_harperi","Gamochaeta_pensylvanica","Lindernia_dubia","Gratiola_viscidula","Hamamelis_virginiana","Houstonia_micrantha","Helianthus_microcephalus","Amianthium_muscaetoxicum","Hygrophila_polysperma","Heterotheca_subaxillaris","Hibiscus_radiatus","Oplismenus_setarius","Hymenocallis_palmeri","Hypericum_setosum","Hypoxis_wrightii","Mesosphaerum_pectinatum","Chrysopsis_mariana","Ludwigia_hirtella","Ludwigia_microcarpa","Bulbostylis_capillaris","Jasminum_multiflorum","Acalypha_wilkesiana","Hypochaeris_chillensis","Agave_virginica","Habranthus_robustus","Rotala_rotundifolia","Dichanthium_aristatum","Schizachyrium_littorale","Schizachyrium_niveum","Indigofera_spicata","Paronychia_herniarioides","Aristida_stricta","Maurandya_antirrhiniflora","Asparagus_aethiopicus","Symphyotrichum_praealtum","Symphyotrichum_oolentangiense","Kalanchoe_pinnata","Crotalaria_alata","Croton_punctatus","Cucumis_sativus","Delphinium_carolinianum","Phyllanthus_pentaphyllus","Oclemena_reticulata","Vigna_unguiculata","Eucalyptus_camaldulensis","Evolvulus_glomeratus","Ficus_americana","Fuirena_scirpoidea","Nemophila_aphylla","Aureolaria_pectinata","Passiflora_incarnata","Gratiola_aurea","Ribes_echinellum","Holmskioldia_sanguinea","Lespedeza_violacea","Helianthus_atrorubens","Axonopus_compressus","Croton_willdenowii","Chrysopsis_floridana","Hibiscus_aculeatus","Hybanthus_linearifolius","Krigia_virginica","Hypochaeris_glabra","Hypoxis_curtissii","Lindernia_monticola","Iris_verna","Ludwigia_linifolia","Ludwigia_sphaerocarpa","Manihot_esculenta","Luzula_acuminata","Juncus_acuminatus","Juncus_nodatus","Kalmia_latifolia","Koelreuteria_elegans","Liatris_squarrulosa","Lantana_montevidensis","Lechea_sessiliflora","Carphephorus_corymbosus","Lilium_michauxii","Stenochlaena_tenuifolia","Luzula_echinata","Malvastrum_corchorifolium","Marsilea_vestita","Hylodesmum_nudiflorum","Desmodium_strictum","Menispermum_canadense","Monarda_citriodora","Leitneria_floridana","Najas_wrightiana","Acalypha_wilkesiana","Hypochaeris_chillensis","Agave_virginica","Habranthus_robustus","Rotala_rotundifolia","Dichanthium_aristatum","Schizachyrium_littorale","Schizachyrium_niveum","Indigofera_spicata","Paronychia_herniarioides","Aristida_stricta","Maurandya_antirrhiniflora","Hypericum_crux-andreae","Symphyotrichum_praealtum","Symphyotrichum_oolentangiense","Aureolaria_pectinata","Passiflora_incarnata","Holmskioldia_sanguinea","Lespedeza_violacea","Helianthus_atrorubens","Axonopus_compressus","Croton_willdenowii","Chrysopsis_floridana","Hibiscus_aculeatus","Hybanthus_linearifolius","Krigia_virginica","Hypochaeris_glabra","Hypoxis_curtissii","Lindernia_monticola","Sericocarpus_asteroides","Tephrosia_virginiana","Crotalaria_pallida","Diplotaxis_muralis","Calamintha_coccinea","Desmodium_triflorum","Rhynchospora_floridensis","Dodonaea_elaeagnoides","Lobelia_amoena","Eucalyptus_robusta","Gymnanthes_lucida","Funastrum_clausum","Galium_hispidulum","Ludwigia_microcarpa","Bulbostylis_capillaris","Jasminum_multiflorum","Juncus_tenuis","Juncus_effusus","Ludwigia_bonariensis","Mimusops_elengi","Brickellia_eupatorioides","Liatris_spicata","Lantana_depressa","Lemna_minuta","Thaspium_barbinode","Nymphoides_indica","Ludwigia_repens","Lyonia_ligustrina","Cyperus_echinatus","Clitoria_mariana","Desmodium_obtusum","Acanthospermum_australe","Mollugo_verticillata","Bacopa_monnieri","Myriophyllum_pinnatum","Asparagus_aethiopicus","Crotalaria_alata","Croton_punctatus","Cucumis_sativus","Phyllanthus_pentaphyllus","Oclemena_reticulata","Vigna_unguiculata","Evolvulus_glomeratus","Ficus_americana","Fuirena_scirpoidea","Gratiola_aurea","Ribes_echinellum","Iris_verna","Ludwigia_linifolia","Ludwigia_sphaerocarpa","Manihot_esculenta","Lysiloma_sabicu","Acalypha_rhomboidea","Ludwigia_grandiflora","Ambrosia_psilostachya","Hypelate_trifoliata","Andropogon_glomeratus","Andropogon_liebmannii","Osmundastrum_cinnamomeum","Crataegus_aestivalis","Cleistesiopsis_divaricata","Phlox_drummondii","Asclepias_humistrata","Eurybia_eryngiifolia","Flaveria_linearis","Gamochaeta_pensylvanica","Lindernia_dubia","Gratiola_viscidula","Hamamelis_virginiana","Houstonia_micrantha","Helianthus_microcephalus","Amianthium_muscaetoxicum","Hygrophila_polysperma","Heterotheca_subaxillaris","Hibiscus_radiatus","Hymenocallis_palmeri","Hypericum_setosum","Mesosphaerum_pectinatum","Chrysopsis_mariana","Ludwigia_hirtella","Juncus_trigonocarpus","Juncus_canadensis","Ludwigia_peruviana","Koeleria_gerardii","Lachnocaulon_minus","Liatris_pauciflora","Lasiacis_ruscifolia","Helenium_brevifolium","Ligustrum_japonicum","Scaevola_plumieri","Ludwigia_brevipes","Corchorus_hirtus","Cyperus_grayi","Zoysia_matrella","Desmodium_tortuosum","Melochia_pyramidata","Luffa_aegyptiaca","Morus_rubra","Myrsine_cubana","Blechnum_occidentale","Agalinis_harperi","Eucalyptus_camaldulensis","Delphinium_carolinianum","Kalanchoe_pinnata","Morella_cerifera","Najas_marina","Desmodium_incanum","Malpighia_emarginata","Liatris_gracilis","Juncus_scirpoides","Juncus_debilis","Justicia_comata","Pycnanthemum_flexuosum","Hypoxis_wrightii","Oplismenus_setarius","Tragia_cordata","Nemophila_aphylla")
+name = c("Lysiloma sabicu","Acalypha rhomboidea","Ludwigia grandiflora","Tragia cordata","Ambrosia psilostachya","Hypelate trifoliata","Andropogon glomeratus","Andropogon liebmannii","Osmundastrum cinnamomeum","Crataegus aestivalis","Cleistesiopsis divaricata","Phlox drummondii","Asclepias humistrata","Sericocarpus asteroides","Eurybia eryngiifolia","Tephrosia virginiana","Crotalaria pallida","Diplotaxis muralis","Calamintha coccinea","Desmodium triflorum","Rhynchospora floridensis","Dodonaea elaeagnoides","Lobelia amoena","Eucalyptus robusta","Gymnanthes lucida","Flaveria linearis","Funastrum clausum","Galium hispidulum","Agalinis harperi","Gamochaeta pensylvanica","Lindernia dubia","Gratiola viscidula","Hamamelis virginiana","Houstonia micrantha","Helianthus microcephalus","Amianthium muscaetoxicum","Hygrophila polysperma","Heterotheca subaxillaris","Hibiscus radiatus","Oplismenus setarius","Hymenocallis palmeri","Hypericum setosum","Hypoxis wrightii","Mesosphaerum pectinatum","Chrysopsis mariana","Ludwigia hirtella","Ludwigia microcarpa","Bulbostylis capillaris","Jasminum multiflorum","Acalypha wilkesiana","Hypochaeris chillensis","Agave virginica","Habranthus robustus","Rotala rotundifolia","Dichanthium aristatum","Schizachyrium littorale","Schizachyrium niveum","Indigofera spicata","Paronychia herniarioides","Aristida stricta","Maurandya antirrhiniflora","Asparagus aethiopicus","Symphyotrichum praealtum","Symphyotrichum oolentangiense","Kalanchoe pinnata","Crotalaria alata","Croton punctatus","Cucumis sativus","Delphinium carolinianum","Phyllanthus pentaphyllus","Oclemena reticulata","Vigna unguiculata","Eucalyptus camaldulensis","Evolvulus glomeratus","Ficus americana","Fuirena scirpoidea","Aureolaria pectinata","Passiflora incarnata","Gratiola aurea","Ribes echinellum","Holmskioldia sanguinea","Lespedeza violacea","Helianthus atrorubens","Axonopus compressus","Croton willdenowii","Chrysopsis floridana","Hibiscus aculeatus","Hybanthus linearifolius","Krigia virginica","Hypochaeris glabra","Hypoxis curtissii","Lindernia monticola","Iris verna","Ludwigia linifolia","Ludwigia sphaerocarpa","Manihot esculenta","Acalypha wilkesiana","Hypochaeris chillensis","Agave virginica","Habranthus robustus","Rotala rotundifolia","Dichanthium aristatum","Schizachyrium littorale","Schizachyrium niveum","Indigofera spicata","Paronychia herniarioides","Aristida stricta","Maurandya antirrhiniflora","Symphyotrichum praealtum","Symphyotrichum oolentangiense","Aureolaria pectinata","Passiflora incarnata","Holmskioldia sanguinea","Lespedeza violacea","Helianthus atrorubens","Axonopus compressus","Croton willdenowii","Chrysopsis floridana","Hibiscus aculeatus","Hybanthus linearifolius","Krigia virginica","Hypochaeris glabra","Hypoxis curtissii","Lindernia monticola","Sericocarpus asteroides","Tephrosia virginiana","Crotalaria pallida","Diplotaxis muralis","Calamintha coccinea","Desmodium triflorum","Rhynchospora floridensis","Dodonaea elaeagnoides","Lobelia amoena","Eucalyptus robusta","Gymnanthes lucida","Funastrum clausum","Galium hispidulum","Ludwigia microcarpa","Bulbostylis capillaris","Jasminum multiflorum","Asparagus aethiopicus","Crotalaria alata","Croton punctatus","Cucumis sativus","Phyllanthus pentaphyllus","Oclemena reticulata","Vigna unguiculata","Evolvulus glomeratus","Ficus americana","Fuirena scirpoidea","Gratiola aurea","Ribes echinellum","Iris verna","Ludwigia linifolia","Ludwigia sphaerocarpa","Manihot esculenta", "Acalypha rhomboidea","Ludwigia grandiflora","Ambrosia psilostachya","Hypelate trifoliata","Andropogon glomeratus","Andropogon liebmannii","Osmundastrum cinnamomeum","Crataegus aestivalis","Cleistesiopsis divaricata","Phlox drummondii","Asclepias humistrata","Eurybia eryngiifolia","Flaveria linearis","Gamochaeta pensylvanica","Lindernia dubia","Gratiola viscidula","Hamamelis virginiana","Houstonia micrantha","Helianthus microcephalus","Amianthium muscaetoxicum","Hygrophila polysperma","Heterotheca subaxillaris","Hibiscus radiatus","Hymenocallis palmeri","Hypericum setosum","Mesosphaerum pectinatum","Chrysopsis mariana","Ludwigia hirtella","Agalinis harperi","Eucalyptus camaldulensis","Delphinium carolinianum","Kalanchoe pinnata","Hypoxis wrightii","Oplismenus setarius","Tragia cordata")
+name <- gsub("_", " ", name)
+names(l.df) <- name
+#save(l.df, file = "data/synonym.RData"
+
+
+# Make list of synonyms 
+l.df <- lapply(ls(pattern = "*_*"), function(x) get(x))
+name <- c("Lysiloma_sabicu", "Acalypha_wilkesiana", "Acalypha_herzogiana", 
+          "Acalypha_rhomboidea", "Hypochaeris_chillensis", "Amaranthus_cannabinus", 
+          "Ludwigia_grandiflora", "Agave_virginica", "Agave_desmettiana", "Agave_weberi",
+          "Tragia_cordata", "Habranthus_robustus", "Zephyranthes_rosea", 
+          "Ambrosia_psilostachya", "Rotala_rotundifolia", "Prunus_persica", 
+          "Hypelate_trifoliata", "Dichanthium_aristatum", "Cymbopogon_jwarancusa", 
+          "Andropogon_glomeratus", "Schizachyrium_littorale", "Schizachyrium_maritimum", 
+          "Andropogon_liebmannii", "Schizachyrium_niveum", "Schizachyrium_rhizomatum", 
+          "Osmundastrum_cinnamomeum", "Indigofera_spicata", "Dianella_ensifolia", 
+          "Crataegus_aestivalis", "Paronychia_herniarioides", "Araucaria_heterophylla", 
+          "Cleistesiopsis_divaricata", "Aristida_stricta", "Aristolochia_ringens", 
+          "Phlox_drummondii", "Maurandya_antirrhiniflora", "Asclepias_rubra", 
+          "Asclepias_humistrata", "Hypericum_crux-andreae", "Asparagus_aethiopicus", 
+          "Sericocarpus_asteroides", "Symphyotrichum_praealtum", "Symphyotrichum_dumosum", 
+          "Eurybia_eryngiifolia", "Symphyotrichum_oolentangiense", "Symphyotrichum_simmondsii", 
+          "Symphyotrichum_plumosum", "Solidago_tortifolia", "Chenopodiastrum_murale", 
+          "Axonopus_fissifolius", "Rhododendron_alabamense", "Azolla_filiculoides", 
+          "Baccharis_dioica", "Baptisia_lanceolata", "Ruellia_blechum", 
+          "Basiphyllaea_corallicola", "Ipomoea_setosa", "Lindera_benzoin", 
+          "Bignonia_aequinoctialis", "Cnidoscolus_stimulosus", "Blechnum_occidentale",
+          "Boltonia_asteroides", "Hypericum_cistifolium", "Hypericum_drummondii", 
+          "Cayaponia_quinqueloba", "Sideroxylon_celastrinum", "Sideroxylon_salicifolium", 
+          "Sideroxylon_rufohirtum", "Ayenia_euphrasiifolia", "Vernonia_angustifolia", 
+          "Cakile_lanceolata", "Coreopsis_basalis", "Melaleuca_viminalis", 
+          "Callitriche_heterophylla", "Callitriche_peploides", "Callitriche_pedunculosa", 
+          "Calophyllum_inophyllum", "Triodanis_biflora", "Canna_glauca", "Capsicum_annuum", 
+          "Carex_muehlenbergii", "Carex_stipata", "Carex_louisianica", "Carex_nigromarginata", 
+          "Carex_comosa", "Carex_flaccosperma", "Carex_leptalea", "Carex_striatula", 
+          "Carex_hyalinolepis", "Carex_atlantica", "Carex_cephalophora", "Carex_abscondita",
+          "Carex_albicans", "Carex_corrugata", "Carex_lonchocarpa", "Carex_caroliniana", 
+          "Carex_typhina", "Senna_occidentalis", "Senna_pendula", "Chamaecrista_rotundifolia",
+          "Catesbaea_parviflora", "Linum_arenicola", "Sanicula_canadensis", 
+          "Ceanothus_americanus", "Celosia_trigyna", "Pilosocereus_polygonus", 
+          "Juncus_repens", "Prunus_caroliniana", "Rhynchospora_inundata", 
+          "Cercis_canadensis", "Aristida_lanosa", "Setaria_palmifolia", 
+          "Eleocharis_baldwinii", "Chamaecyparis_thyoides", "Euphorbia_mesembrianthemifolia",
+          "Euphorbia_conferta", "Euphorbia_cordifolia", "Euphorbia_deltoidea", 
+          "Dichanthelium_clandestinum", "Ophioglossum_palmatum", "Sabatia_stellaris", 
+          "Chloris_radiata", "Eustachys_floridana", "Eustachys_glauca", "Sideroxylon_tenax",
+          "Pityopsis_aspera", "Cissampelos_pareira", "Polanisia_tenuifolia", 
+          "Warea_cuneifolia", "Clethra_alnifolia", "Coccocypselum_hirsutum", 
+          "Codiaeum_variegatum", "Spigelia_loganioides", "Heteranthera_dubia", 
+          "Commelina_forskaolii", "Commelina_diffusa", "Corallorhiza_odontorhiza", 
+          "Corchorus_aestuans", "Coreopsis_pubescens", "Coreopsis_lanceolata", "Kalanchoe_pinnata", 
+          "Tephrosia_virginiana", "Vicia_ludoviciana", "Crotalaria_alata", 
+          "Crotalaria_pallida", "Crotalaria_spectabilis", "Croton_punctatus", 
+          "Diplotaxis_muralis", "Lepuropetalon_spathulatum", "Cucumis_sativus", 
+          "Calamintha_coccinea", "Cuscuta_gronovii", "Cuscuta_umbellata", 
+          "Cuscuta_obtusiflora", "Callisia_graminea", "Araujia_odorata", 
+          "Spartina_cynosuroides", "Cyperus_planifolius", "Cyperus_difformis", 
+          "Cyperus_oxylepis", "Cyperus_lecontei", "Cyperus_tetragonus", "Cyperus_drummondii", 
+          "Datura_stramonium", "Hydrangea_barbara", "Asimina_pulchella", "Delphinium_carolinianum", 
+          "Desmodium_triflorum", "Justicia_americana", "Phyllanthus_pentaphyllus", 
+          "Rhynchospora_floridensis", "Paspalum_dilatatum", "Oclemena_reticulata", 
+          "Dodonaea_elaeagnoides", "Rhynchosia_cinerea", "Vigna_unguiculata", 
+          "Lobelia_amoena", "Tomostima_cuneifolia", "Abdra_brachycarpa", 
+          "Abelmoschus_esculentus", "Abildgaardia_ovata", "Thelypteris_reticulata", 
+          "Drypetes_lateriflora", "Thymophylla_tenuiloba", "Eclipta_prostrata", 
+          "Elaeagnus_pungens", "Elephantopus_carolinianus", "Thunbergia_alata", 
+          "Cynanchum_northropiae", "Epidendrum_rigidum", "Epidendrum_radicans", 
+          "Eragrostis_unioloides", "Eranthemum_pulchellum", "Erechtites_hieraciifolius", 
+          "Erigeron_philadelphicus", "Cenchrus_pedicellatus", "Eryngium_integrifolium", 
+          "Eryngium_foetidum", "Erythrina_herbacea", "Sclerolepis_uniflora", "Eucalyptus_camaldulensis",
+          "Eucalyptus_robusta", "Chromolaena_ivifolia", "Evolvulus_glomeratus", 
+          "Gymnanthes_lucida", "Valerianella_radiata", "Ficus_americana", "Ficus_pumila", 
+          "Flaveria_linearis", "Froelichia_floridana", "Fuirena_scirpoidea", 
+          "Funastrum_clausum", "Galactia_mollis", "Galactia_regularis", "Nemophila_aphylla",
+          "Galium_hispidulum", "Galium_circaezans", "Galium_tinctorium", 
+          "Polygala_incarnata", "Oenothera_filipes", "Agalinis_filicaulis", 
+          "Agalinis_harperi", "Aureolaria_pectinata", "Pseudognaphalium_domingense", 
+          "Gamochaeta_pensylvanica", "Passiflora_incarnata", "Wolffia_globosa", 
+          "Lindernia_dubia", "Gratiola_brevifolia", "Gratiola_aurea", "Sophronanthe_pilosa",
+          "Gratiola_viscidula", "Grewia_asiatica", "Ribes_echinellum", "Cucurbita_moschata",
+          "Hamamelis_virginiana", "Holmskioldia_sanguinea", "Hedera_helix", 
+          "Houstonia_micrantha", "Lespedeza_violacea", "Alysicarpus_rugosus", 
+          "Helianthus_microcephalus", "Helianthus_atrorubens", "Heliotropium_amplexicaule",
+          "Amianthium_muscaetoxicum", "Axonopus_compressus", "Eriochloa_contracta", 
+          "Hygrophila_polysperma", "Croton_willdenowii", "Xyris_elliottii", 
+          "Heterotheca_subaxillaris", "Chrysopsis_floridana", "Malvaviscus_arboreus", 
+          "Hibiscus_radiatus", "Hibiscus_aculeatus", "Carya_aquatica", "Sonchus_asper", 
+          "Oplismenus_setarius", "Hybanthus_linearifolius", "Hymenocallis_latifolia", 
+          "Hymenocallis_palmeri", "Krigia_virginica", "Hypericum_frondosum", 
+          "Hypericum_setosum", "Hypochaeris_glabra", "Scleria_georgiana", "Hypoxis_juncea", 
+          "Hypoxis_wrightii", "Hypoxis_curtissii", "Cantinoa_mutabilis", 
+          "Mesosphaerum_pectinatum", "Lindernia_monticola", "Indigofera_pilosa", 
+          "Chrysopsis_mariana", "Iris_tridentata", "Iris_verna", "Harperocallis_flava", 
+          "Ludwigia_hirtella", "Ludwigia_lanceolata", "Ludwigia_linifolia", 
+          "Ludwigia_microcarpa", "Ludwigia_spathulata", "Ludwigia_sphaerocarpa", 
+          "Bulbostylis_capillaris", "Hypericum_microsepalum", "Manihot_esculenta", 
+          "Jasminum_multiflorum", "Jasminum_laurifolium", "Lysiloma_sabicu", 
+          "Acalypha_wilkesiana", "Acalypha_herzogiana", "Acalypha_rhomboidea", 
+          "Hypochaeris_chillensis", "Amaranthus_cannabinus", "Ludwigia_grandiflora", 
+          "Agave_virginica", "Agave_desmettiana", "Agave_weberi", "Tragia_cordata", 
+          "Habranthus_robustus", "Zephyranthes_rosea", "Ambrosia_psilostachya", 
+          "Rotala_rotundifolia", "Prunus_persica", "Hypelate_trifoliata", 
+          "Dichanthium_aristatum", "Cymbopogon_jwarancusa", "Andropogon_glomeratus",
+          "Schizachyrium_littorale", "Schizachyrium_maritimum", "Andropogon_liebmannii",
+          "Schizachyrium_niveum", "Schizachyrium_rhizomatum", "Osmundastrum_cinnamomeum",
+          "Indigofera_spicata", "Dianella_ensifolia", "Crataegus_aestivalis", 
+          "Paronychia_herniarioides", "Araucaria_heterophylla", "Cleistesiopsis_divaricata",
+          "Aristida_stricta", "Aristolochia_ringens", "Phlox_drummondii", 
+          "Maurandya_antirrhiniflora", "Asclepias_rubra", "Asclepias_humistrata", 
+          "Asparagus_aethiopicus", "Sericocarpus_asteroides", 
+          "Symphyotrichum_praealtum", "Symphyotrichum_dumosum", "Eurybia_eryngiifolia",
+          "Symphyotrichum_oolentangiense", "Symphyotrichum_simmondsii", 
+          "Symphyotrichum_plumosum", "Solidago_tortifolia", "Chenopodiastrum_murale", 
+          "Axonopus_fissifolius", "Rhododendron_alabamense", "Azolla_filiculoides", 
+          "Baccharis_dioica", "Baptisia_lanceolata", "Ruellia_blechum", 
+          "Basiphyllaea_corallicola", "Ipomoea_setosa", "Lindera_benzoin", 
+          "Bignonia_aequinoctialis", "Cnidoscolus_stimulosus", "Blechnum_occidentale_",
+          "Boltonia_asteroides", "Hypericum_cistifolium", "Hypericum_drummondii", 
+          "Cayaponia_quinqueloba", "Sideroxylon_celastrinum", "Sideroxylon_salicifolium",
+          "Sideroxylon_rufohirtum", "Ayenia_euphrasiifolia", "Vernonia_angustifolia", 
+          "Cakile_lanceolata", "Coreopsis_basalis", "Melaleuca_viminalis", 
+          "Callitriche_heterophylla", "Callitriche_peploides", "Callitriche_pedunculosa",
+          "Calophyllum_inophyllum", "Triodanis_biflora", "Canna_glauca", "Capsicum_annuum",
+          "Carex_muehlenbergii", "Carex_stipata", "Carex_louisianica", "Carex_nigromarginata",
+          "Carex_comosa", "Carex_flaccosperma", "Carex_leptalea", "Carex_striatula", 
+          "Carex_hyalinolepis", "Carex_atlantica", "Carex_cephalophora", "Carex_abscondita",
+          "Carex_albicans", "Carex_corrugata", "Carex_lonchocarpa", "Carex_caroliniana", 
+          "Carex_typhina", "Senna_occidentalis", "Senna_pendula", "Chamaecrista_rotundifolia",
+          "Catesbaea_parviflora", "Linum_arenicola", "Sanicula_canadensis", 
+          "Ceanothus_americanus", "Celosia_trigyna", "Pilosocereus_polygonus", 
+          "Juncus_repens", "Prunus_caroliniana", "Rhynchospora_inundata", 
+          "Cercis_canadensis", "Aristida_lanosa", "Setaria_palmifolia", 
+          "Eleocharis_baldwinii", "Chamaecyparis_thyoides", "Euphorbia_mesembrianthemifolia",
+          "Euphorbia_conferta", "Euphorbia_cordifolia", "Euphorbia_deltoidea", 
+          "Dichanthelium_clandestinum", "Ophioglossum_palmatum", "Sabatia_stellaris", 
+          "Chloris_radiata", "Eustachys_floridana", "Eustachys_glauca", "Sideroxylon_tenax",
+          "Pityopsis_aspera", "Cissampelos_pareira", "Polanisia_tenuifolia", 
+          "Warea_cuneifolia", "Clethra_alnifolia", "Coccocypselum_hirsutum", 
+          "Codiaeum_variegatum", "Spigelia_loganioides", "Heteranthera_dubia", 
+          "Commelina_forskaolii", "Commelina_diffusa", "Corallorhiza_odontorhiza", 
+          "Corchorus_aestuans", "Coreopsis_pubescens", "Coreopsis_lanceolata", 
+          "Kalanchoe_pinnata", "Tephrosia_virginiana", "Vicia_ludoviciana", 
+          "Crotalaria_alata", "Crotalaria_pallida", "Crotalaria_spectabilis", 
+          "Croton_punctatus", "Diplotaxis_muralis", "Lepuropetalon_spathulatum", 
+          "Cucumis_sativus", "Calamintha_coccinea", "Cuscuta_gronovii", "Cuscuta_umbellata",
+          "Cuscuta_obtusiflora", "Callisia_graminea", "Araujia_odorata", 
+          "Spartina_cynosuroides", "Cyperus_planifolius", "Cyperus_difformis", 
+          "Cyperus_oxylepis", "Cyperus_lecontei", "Cyperus_tetragonus", "Cyperus_drummondii",
+          "Datura_stramonium", "Hydrangea_barbara", "Asimina_pulchella", 
+          "Delphinium_carolinianum", "Desmodium_triflorum", "Justicia_americana", 
+          "Phyllanthus_pentaphyllus", "Rhynchospora_floridensis", "Paspalum_dilatatum", 
+          "Oclemena_reticulata", "Dodonaea_elaeagnoides", "Rhynchosia_cinerea", 
+          "Vigna_unguiculata", "Lobelia_amoena", "Tomostima_cuneifolia", "Abdra_brachycarpa",
+          "Abelmoschus_esculentus", "Abildgaardia_ovata", "Thelypteris_reticulata", 
+          "Drypetes_lateriflora", "Thymophylla_tenuiloba", "Eclipta_prostrata", 
+          "Elaeagnus_pungens", "Elephantopus_carolinianus", "Thunbergia_alata", 
+          "Cynanchum_northropiae", "Epidendrum_rigidum", "Epidendrum_radicans", 
+          "Eragrostis_unioloides", "Eranthemum_pulchellum", "Erechtites_hieraciifolius", 
+          "Erigeron_philadelphicus", "Cenchrus_pedicellatus", "Eryngium_integrifolium", 
+          "Eryngium_foetidum", "Erythrina_herbacea", "Sclerolepis_uniflora", 
+          "Eucalyptus_camaldulensis", "Eucalyptus_robusta", "Chromolaena_ivifolia", 
+          "Evolvulus_glomeratus", "Gymnanthes_lucida", "Valerianella_radiata", 
+          "Ficus_americana", "Ficus_pumila", "Flaveria_linearis", "Froelichia_floridana", 
+          "Fuirena_scirpoidea", "Funastrum_clausum", "Galactia_mollis", "Galactia_regularis",
+          "Nemophila_aphylla", "Galium_hispidulum", "Galium_circaezans", "Galium_tinctorium",
+          "Polygala_incarnata", "Oenothera_filipes", "Agalinis_filicaulis", "Agalinis_harperi",
+          "Aureolaria_pectinata", "Pseudognaphalium_domingense", "Gamochaeta_pensylvanica",
+          "Passiflora_incarnata", "Wolffia_globosa", "Lindernia_dubia", "Gratiola_brevifolia",
+          "Gratiola_aurea", "Sophronanthe_pilosa", "Gratiola_viscidula", "Grewia_asiatica", 
+          "Ribes_echinellum", "Cucurbita_moschata", "Hamamelis_virginiana", 
+          "Holmskioldia_sanguinea", "Hedera_helix", "Houstonia_micrantha", 
+          "Lespedeza_violacea", "Alysicarpus_rugosus", "Helianthus_microcephalus", 
+          "Helianthus_atrorubens", "Heliotropium_amplexicaule", "Amianthium_muscaetoxicum", 
+          "Axonopus_compressus", "Eriochloa_contracta", "Hygrophila_polysperma", 
+          "Croton_willdenowii", "Xyris_elliottii", "Heterotheca_subaxillaris", 
+          "Chrysopsis_floridana", "Malvaviscus_arboreus", "Hibiscus_radiatus", 
+          "Hibiscus_aculeatus", "Carya_aquatica", "Sonchus_asper", "Oplismenus_setarius", 
+          "Hybanthus_linearifolius", "Hymenocallis_latifolia", "Hymenocallis_palmeri", 
+          "Krigia_virginica", "Hypericum_frondosum", "Hypericum_setosum", 
+          "Hypochaeris_glabra", "Scleria_georgiana", "Hypoxis_juncea", "Hypoxis_wrightii",
+          "Hypoxis_curtissii", "Cantinoa_mutabilis", "Mesosphaerum_pectinatum", 
+          "Lindernia_monticola", "Indigofera_pilosa", "Chrysopsis_mariana", "Iris_tridentata",
+          "Iris_verna", "Harperocallis_flava", "Ludwigia_hirtella", "Ludwigia_lanceolata", 
+          "Ludwigia_linifolia", "Ludwigia_microcarpa", "Ludwigia_spathulata", 
+          "Ludwigia_sphaerocarpa", "Bulbostylis_capillaris", "Hypericum_microsepalum", 
+          "Manihot_esculenta", "Jasminum_multiflorum", "Jasminum_laurifolium",
+          "Luzula_acuminata", "Juncus_tenuis", "Juncus_trigonocarpus", "Juncus_scirpoides",
+          "Juncus_acuminatus", "Juncus_effusus", "Juncus_canadensis", "Juncus_debilis", 
+          "Juncus_nodatus", "Ludwigia_bonariensis", "Ludwigia_peruviana", "Justicia_comata",
+          "Kalmia_latifolia", "Mimusops_elengi", "Koeleria_gerardii", "Pycnanthemum_flexuosum",
+          "Koelreuteria_elegans", "Brickellia_eupatorioides", "Lachnocaulon_minus",
+          "Liatris_squarrulosa", "Liatris_spicata", "Liatris_pauciflora", 
+          "Lantana_montevidensis", "Lantana_depressa", "Lasiacis_ruscifolia", 
+          "Lechea_sessiliflora", "Lemna_minuta", "Helenium_brevifolium", "Liatris_gracilis",
+          "Carphephorus_corymbosus", "Thaspium_barbinode", "Ligustrum_japonicum", 
+          "Lilium_michauxii", "Nymphoides_indica", "Scaevola_plumieri", 
+          "Stenochlaena_tenuifolia", "Ludwigia_repens", "Ludwigia_brevipes", 
+          "Luzula_echinata", "Lyonia_ligustrina", "Corchorus_hirtus", "Malpighia_emarginata",
+          "Malvastrum_corchorifolium", "Cyperus_echinatus", "Cyperus_grayi", 
+          "Marsilea_vestita", "Clitoria_mariana", "Zoysia_matrella", "Desmodium_incanum", 
+          "Hylodesmum_nudiflorum", "Desmodium_obtusum", "Desmodium_tortuosum", 
+          "Desmodium_strictum", "Acanthospermum_australe", "Melochia_pyramidata", 
+          "Menispermum_canadense", "Mollugo_verticillata", "Luffa_aegyptiaca", 
+          "Monarda_citriodora", "Bacopa_monnieri", "Morus_rubra", "Morella_cerifera", 
+          "Leitneria_floridana", "Myriophyllum_pinnatum", "Myrsine_cubana", "Najas_marina", 
+          "Najas_wrightiana") 
+#"Adiantum_capillus-veneris",
+name <- gsub("_", " ", name)
+names(l.df) <- name
+
+save(l.df, file = "/blue/soltis/laurenwhitehurst/FL_Phylogenetics/one_synonym.RData")
