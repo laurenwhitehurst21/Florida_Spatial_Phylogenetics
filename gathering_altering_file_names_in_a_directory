@@ -1,0 +1,45 @@
+#List file names in a directory, extract name before extension and save in new directory.
+#lastly, use Gsub to remove the "_" underscores
+
+# Install and load the readr package if not already installed
+install.packages("readr")
+library(readr)
+
+# Replace 'your_directory_path' with the actual path to your directory
+directory_path <- "/Users/laurenwhitehurst/Desktop/FL_OCC_RECS/CLEANED_OCC_RECS/"
+
+# Get the list of files in the directory
+file_list <- list.files(directory_path, full.names = TRUE)
+
+# Create a new directory to save the extracted text files
+output_directory <- "/Users/laurenwhitehurst/Desktop/FL_OCC_RECS/output_directory2"
+dir.create(output_directory, showWarnings = FALSE)
+
+# Loop through each file, extract the text before extension, and save it to a new file
+for (file_path in file_list) {
+  # Read the content of the file
+  content <- read_file(file_path)
+  
+  # Extract the name without extension
+  name_without_extension <- tools::file_path_sans_ext(basename(file_path))
+  
+  # Create a new file path to save the extracted text
+  output_file_path <- file.path(output_directory, paste0(name_without_extension))
+  
+  # Write the extracted text to the new file
+  writeLines(content, con = output_file_path)
+}
+
+# Display a message indicating the process is complete (optional)
+cat("Text extraction and saving complete.\n")
+
+#use Gsub to remove the "_" underscores
+files <- list.files("/Users/laurenwhitehurst/Desktop/FL_OCC_RECS/output_directory2/")
+# Example list of names with underscores
+names_with_underscore <- files
+
+# Replace underscores with spaces
+names_with_space <- gsub("_", " ", names_with_underscore)
+
+# save result 
+writeLines(names_with_space, "/Users/laurenwhitehurst/Desktop/FL_OCC_RECS/output_directory2/names_with_space.txt")
