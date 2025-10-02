@@ -1,0 +1,112 @@
+#This script is used to build a tree figure for the FL Phylogeny project
+#It includes how to make labels for clades by identifying the MRCA through ape
+#It was used to produce the phylogeny figure for my dissertation
+tree<-read.tree("/Users/laurenwhitehurst/Desktop/Dissertation_research_2024-2024/tree_stuff/final_tree_0929.newick")
+# Install if not already installed
+BiocManager::install("ggtree")
+install.packages("ggimage")
+install.packages("treeio")
+library(ape)       # for phylo objects
+library(ggtree)    # tree plotting
+library(ggimage)   # for images on tips
+library(dplyr)     # for data wrangling
+
+#To plot the tree, use this 
+p <- ggtree(tree, layout = "circular", branch.length = "none") 
+#This says plot the tree with a circular layout with no branch length differences
+
+#making clade labels list
+clade_list <- list(
+  Magnoliids = c("Laurales_Calycanthaceae_Calycanthus_floridus", "Canellales_Canellaceae_Canella_winterana"),
+  Poales = c("Poales_Bromeliaceae_Billbergia_pyramidalis", "Poales_Cyperaceae_Eleocharis_elongata"),
+  Alismatales = c("Alismatales_Alismataceae_Helanthium_tenellum","Alismatales_Araceae_Orontium_aquaticum"),
+  Dioscoreales = c("Dioscoreales_Dioscoreaceae_Dioscorea_sansibarensis","Dioscoreales_Nartheciaceae_Lophiola_aurea"),
+  Liliales = c("Liliales_Liliaceae_Medeola_virginiana","Liliales_Colchicaceae_Gloriosa_superba"),
+  Asparagales = c("Asparagales_Hypoxidaceae_Hypoxis_wrightii","Asparagales_Iridaceae_Iris_pseudacorus"),
+  Zingiberales = c("Zingiberales_Musaceae_Musa_x_paradisiaca","Zingiberales_Heliconiaceae_Heliconia_latispatha"),
+  Commelinales = c("Commelinales_Commelinaceae_Murdannia_nudiflora","Commelinales_Pontederiaceae_Eichhornia_azurea"),
+  Arecales = c("Arecales_Arecaceae_Caryota_mitis","Arecales_Arecaceae_Sabal_etonia"),
+  Caryophyllales = c("Caryophyllales_Cactaceae_Opuntia_ficus-indica","Caryophyllales_Droseraceae_Dionaea_muscipula"),
+  Aquifoliales = c("Aquifoliales_Aquifoliaceae_Ilex_vomitoria", "Aquifoliales_Aquifoliaceae_Ilex_amelanchier"),
+  Asterales = c("Asterales_Menyanthaceae_Nymphoides_indica","Asterales_Campanulaceae_Hippobroma_longiflora"),
+  Apiales = c("Apiales_Apiaceae_Coriandrum_sativum","Apiales_Apiaceae_Centella_asiatica"),
+  Dipsacales = c("Dipsacales_Viburnaceae_Sambucus_nigra","Dipsacales_Caprifoliaceae_Symphoricarpos_orbiculatus"),
+  Gentianales = c("Gentianales_Loganiaceae_Spigelia_anthelmia", "Gentianales_Rubiaceae_Hamelia_patens"),
+  Lamiales = c("Lamiales_Linderniaceae_Torenia_fournieri","Lamiales_Oleaceae_Ligustrum_japonicum"),
+  Boraginales = c("Boraginales_Boraginaceae_Heliotropium_angiospermum","Boraginales_Boraginaceae_Nemophila_aphylla"),
+  Solanales = c("Solanales_Convolvulaceae_Bonamia_grandiflora","Solanales_Sphenocleaceae_Sphenoclea_zeylanica"),
+  Ericales = c("Ericales_Sapotaceae_Sideroxylon_lycioides","Ericales_Balsaminaceae_Impatiens_balsamina"),
+  Cornales = c("Cornales_Hydrangeaceae_Hydrangea_barbara","Cornales_Cornaceae_Cornus_florida"),
+  Vitales = c("Vitales_Vitaceae_Causonis_japonica", "Vitales_Vitaceae_Parthenocissus_quinquefolia"),
+  Cucurbitales = c("Cucurbitales_Cucurbitaceae_Sicyos_edulis", "Cucurbitales_Cucurbitaceae_Momordica_balsamina"),
+  Rosales = c("Rosales_Rosaceae_Rosa_multiflora","Rosales_Ulmaceae_Ulmus_alata"),
+  Fagales = c("Fagales_Fagaceae_Quercus_myrtifolia","Fagales_Myricaceae_Morella_caroliniensis"),
+  Fabales = c("Fabales_Fabaceae_Tamarindus_indica","Fabales_Surianaceae_Suriana_maritima"),
+  Oxalidales = c("Oxalidales_Oxalidaceae_Oxalis_violacea","Oxalidales_Oxalidaceae_Oxalis_corniculata"),
+  Celastrales = c("Celastrales_Celastraceae_Gyminda_latifolia", "Celastrales_Parnassiaceae_Parnassia_grandifolia"),
+  Malpighiales = c("Malpighiales_Passifloraceae_Passiflora_lutea", "Malpighiales_Malpighiaceae_Byrsonima_lucida"),
+  Zygophyllales = c("Zygophyllales_Zygophyllaceae_Tribulus_terrestris","Zygophyllalales_Zygophyllaceae_Kallstroemia_maxima"),
+  Geraniales = c("Geraniales_Geraniaceae_Geranium_bicknellii","Geraniales_Geraniaceae_Erodium_cicutarium"),
+  Myrtales = c("Myrtales_Onagraceae_Ludwigia_palustris","Myrtales_Melastomataceae_Miconia_bicolor"),
+  Brassicales = c("Brassicales_Capparaceae_Cynophalla_flexuosa","Brassicales_Moringaceae_Moringa_oleifera"),
+  Malvales = c("Malvales_Malvaceae_Gossypium_hirsutum","Malvales_Thymelaeaceae_Dirca_palustris"),
+  Sapindales = c("Sapindales_Rutaceae_Zanthoxylum_americanum","Sapindales_Burseraceae_Bursera_simaruba"),
+  Saxifragales = c("Saxifragales_Hamamelidaceae_Hamamelis_ovalis","Saxifragales_Grossulariaceae_Ribes_echinellum"),
+  Proteales = c("Proteales_Platanaceae_Platanus_occidentalis","Proteales_Nelumbonaceae_Nelumbo_nucifera"),
+  Ranunculales = c("Ranunculales_Ranunculaceae_Clematis_virginiana","Ranunculales_Papaveraceae_Fumaria_parviflora"),
+  Piperales = c("Piperales_Aristolochiaceae_Asarum_virginicum","Piperales_Aristolochiaceae_Aristolochia_maxima"),
+  Magnoliales = c("Magnoliales_Magnoliaceae_Magnolia_tripetala","Magnoliales_Annonaceae_Polyalthia_suberosa"),
+  Laurales = c("Laurales_Lauraceae_Damburneya_coriacea","Laurales_Calycanthaceae_Calycanthus_floridus"),
+  Gymnosperms = c("Cupressales_Taxaceae_Torreya_taxifolia","Cycadales_Zamiaceae_Zamia_integrifolia"),
+  Ferns = c("Gleicheniales_Gleicheniaceae_Dicranopteris_flexuosa", "Ophioglossales_Ophioglossaceae_Botrychium_lunarioides"),
+  Lycophytes = c("Isoetales_Isoetaceae_Isoetes_boomii", "Selaginellales_Selaginellaceae_Selaginella_apoda"),
+  Nymphaeales = c("Nymphaeales_Nymphaeaceae_Nuphar_advena",  "Nymphaeales_Cabombaceae_Cabomba_caroliniana"),
+  Austrobaileyales = c("Austrobaileyales_Schisandraceae_Illicium_floridanum","Austrobaileyales_Schisandraceae_Schisandra_glabra")
+)
+#for a clade in the list, find the MRCA and highlight that clade with a random color and its label
+for (clade in names(clade_list)) {
+  node <- MRCA(tree, clade_list[[clade]])
+  p <- p + geom_hilight(node = node, fill = sample(colors(), 1), alpha = 0.4) +
+ geom_cladelabel(node = node, label = clade, offset = 5, align = TRUE)
+}
+p
+
+#visualizing BS values using this
+p <- ggtree(tree) +
+  geom_tiplab() +
+  geom_text2(aes(label = label), hjust = -0.3)   # node labels (bootstraps)
+#display the tree
+p
+
+#coloring clades with specified colors
+clade_colors <- c(
+  Magnoliids = "#66c2a5", Poales = "#fc8d62", Alismatales = "#8da0cb",
+  Dioscoreales = "#e78ac3", Liliales = "#a6d854", Asparagales = "#ffd92f",
+  Zingiberales = "#e5c494", Commelinales = "#b3b3b3", Arecales = "#1b9e77",
+  Caryophyllales = "red", Aquifoliales = "blue", Asterales = "orange",
+  Apiales = "purple", Dipsacales = "pink", Gentianales = "cyan", 
+  Lamiales = "yellow", Boraginales = "grey", Solanales = "red",
+  Ericales = "green", Cornales = "violet", Vitales = "purple",
+  Cucurbitales = "orange", Rosales = "red", Fagales = "brown",
+  Oxalidales = "#66c2a5", Celastrales = "#8da0cb", Malpighiales = "magenta",
+  Zygophyllales = "#ffd92f", Geraniales = "blue", Myrtales = "violet",
+  Brassicales = "#1b9e77", Malvales = "grey", Sapindales = "orange",
+  Saxifragales = "brown", Proteales = "yellow", Ranunculales = "blue",
+  Piperales = "orange", Magnoliales = "green", Laurales = "red",
+  Gymnosperms = "blue", Ferns = "green", Lycophytes = "orange",
+  Nymphaeales = "violet", Austrobaileyales = "grey", Fabales = "#a6d854"
+)
+#this is using the clade_list to identify clades with MRCA, adding a color
+#I've specified for labeling and a label, it is also offsetting the label
+#and the auto angle makes it so the labels are automatically adjusted around
+#the tree
+for (clade in names(clade_list)) {
+  node <- MRCA(tree, clade_list[[clade]])
+  p <- p + 
+    geom_hilight(node = node, fill = clade_colors[clade], alpha = 0.2) +
+    geom_cladelabel(node = node, label = clade, offset = 1, align = TRUE, fontsize = 3, horizontal = TRUE, angle = "auto")
+
+  }
+p
+
+
