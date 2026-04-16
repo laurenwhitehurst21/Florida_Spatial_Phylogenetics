@@ -1,0 +1,78 @@
+library(sf)
+library(ggplot2)
+
+# Read files
+cons <- st_read("/Users/laurenwhitehurst/Downloads/FL_Conservation_Lands_web_2923786614303598700/FL_Conservation_Lands_web.shp")
+fl   <- st_read("/Users/laurenwhitehurst/Downloads/Florida_County_Boundaries_with_FDOT_Districts_-3687648208376326206/FloridaCountyBoundarieswithFDOTDistricts.shp")
+
+# Match projections
+cons <- st_transform(cons, st_crs(fl))
+
+# Plot
+p <- ggplot() +
+  geom_sf(data = fl, fill = "grey95", color = "grey50", linewidth = 0.2) +
+  geom_sf(data = cons, fill = "darkgreen", color = NA, alpha = 0.7) +
+  theme_void() +
+  theme(
+    panel.background = element_rect(fill = "white"),
+    legend.position = "none"
+  )
+
+#plot by authority, remove grid
+ggplot() +
+  geom_sf(data = cons, aes(fill = MATYPE2), color = NA) +
+  scale_fill_manual(values = c(
+    "Federal" = "#1b9e77",
+    "State" = "#d95f02",
+    "Local" = "#7570b3",
+    "Private" = "#e7298a",
+    "Other" = "grey70"
+  )) +
+  labs(
+    title = "Florida Conservation Lands by Authority",
+    fill = "Managing Authority",
+    caption = "Data source: Florida Natural Areas Inventory (FNAI), 2026"
+  ) +
+  theme_classic() +                      # removes grid
+  theme(
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+    legend.position = "right"
+  )
+
+#no axes, FL outline
+library(sf)
+library(ggplot2)
+library(rnaturalearth)
+library(rnaturalearthdata)
+
+fl_outline <- ne_states(country = "United States of America", returnclass = "sf") |>
+  subset(name == "Florida") |>
+  st_union()
+
+p <- ggplot() +
+  geom_sf(data = cons, aes(fill = MATYPE2), color = NA) +
+  scale_fill_manual(values = c(
+    "Federal" = "#1b9e77",
+    "State" = "#d95f02",
+    "Local" = "#7570b3",
+    "Private" = "#e7298a",
+    "Other" = "grey70"
+  )) +
+  labs(
+    title = "Florida Conservation Lands by Authority",
+    fill = "Managing Authority",
+    caption = "Data source: Florida Natural Areas Inventory (FNAI), 2026"
+  ) +
+  geom_sf(data = fl_outline, fill = NA, color = "black", linewidth = 0.4) +
+  theme_void() + 
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 16)
+  )
+p
+ggsave(
+  filename = "/Users/laurenwhitehurst/Desktop/Dissertation_research_2024-2024/Florida_Conservation_Lands_by_Authority.pdf",
+  plot = p,
+  width = 8,
+  height = 10,
+  units = "in"
+)
+R.version.string
